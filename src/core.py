@@ -9,8 +9,8 @@ from torch.utils.data import DataLoader, Dataset
 
 from src.utils import (
     empty_device_cache,
-    get_device_allocated_memory,
     get_device_memory_limit,
+    get_device_used_memory,
     get_system_available_memory,
     get_system_total_memory,
     synchronize_device,
@@ -87,7 +87,7 @@ def find_max_batch_size(
 
             synchronize_device(device)
 
-            device_mem_history.append(get_device_allocated_memory(device))
+            device_mem_history.append(get_device_used_memory(device))
             system_mem_history.append(get_system_available_memory())
 
         return max(device_mem_history), min(system_mem_history)
