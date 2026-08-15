@@ -6,7 +6,7 @@ from torchvision.transforms import ToTensor
 
 from src.core import find_best_batch_size
 
-DEVICE = torch.device("cuda")
+DEVICE = torch.device("mps")
 
 
 def main():
@@ -19,12 +19,19 @@ def main():
 
     dataset = CIFAR10("./data", transform=ToTensor(), download=True)
 
+    dataloader_kwargs = {
+        "num_workers": 1,
+        "prefetch_factor": 1,
+        "persistent_workers": True,
+    }
+
     max_bs = find_best_batch_size(
         model,
         optimizer,
         loss_fn,
         dataset,
         device=DEVICE,
+        dataloader_kwargs=dataloader_kwargs,
         verbose=True,
     )
 

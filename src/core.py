@@ -1,6 +1,7 @@
 import copy
-from collections.abc import Callable, Sized
+from collections.abc import Callable, Mapping, Sized
 from time import perf_counter
+from typing import Any
 
 import numpy as np
 import torch
@@ -27,7 +28,11 @@ def train_step(
     device: torch.device,
 ) -> None:
     X, y = batch
-    X, y = X.to(device), y.to(device)
+
+    non_blocking = device.type == "cuda"
+
+    X = X.to(device, non_blocking=non_blocking)
+    y = y.to(device, non_blocking=non_blocking)
 
     optimizer.zero_grad()
 
@@ -59,6 +64,7 @@ def find_max_batch_size(
     memory_batches: int = 5,
     device_safety_factor: float = 0.9,
     system_reserve_factor: float = 0.15,
+    dataloader_kwargs: Mapping[str, Any] | None = None,
     verbose: bool = False,
 ) -> int:
     if not isinstance(dataset, Sized):
@@ -74,6 +80,14 @@ def find_max_batch_size(
         model.load_state_dict(model_state)
         optimizer.load_state_dict(optimizer_state)
         optimizer.zero_grad(set_to_none=True)
+
+    def create_dataloader(batch_size: int) -> DataLoader:
+        kwargs = {
+            **(dataloader_kwargs or {}),
+            "dataset": dataset,
+            "batch_size": batch_size,
+        }
+        return DataLoader(**kwargs)
 
     def train_trial(loader: DataLoader) -> tuple[int, int]:
         device_mem_history = []
@@ -114,9 +128,9 @@ def find_max_batch_size(
         empty_device_cache(device)
 
         current_bs = min(2**exponent, max_dataset_bs)
-        current_device_mem, current_system_mem = train_trial(
-            DataLoader(dataset, batch_size=current_bs)
-        )
+        loader = create_dataloader(current_bs)
+
+        current_device_mem, current_system_mem = train_trial(loader)
 
         if verbose:
             print(
@@ -224,9 +238,9 @@ def find_max_batch_size(
         empty_device_cache(device)
 
         try:
-            current_device_mem, current_system_mem = train_trial(
-                DataLoader(dataset, batch_size=max_bs)
-            )
+            loader = create_dataloader(max_bs)
+
+            current_device_mem, current_system_mem = train_trial(loader)
 
             if verbose:
                 print(
@@ -272,7 +286,8 @@ def find_best_batch_size(
     fine_benchmark_batches: int = 10,
     final_benchmark_batches: int = 10,
     top_k: int = 3,
-    final_repeats: int = 5,
+    final_repeats: int = 3,
+    dataloader_kwargs: Mapping[str, Any] | None = None,
     verbose: bool = False,
 ) -> int:
     model_state = copy.deepcopy(model.state_dict())
@@ -285,6 +300,14 @@ def find_best_batch_size(
         model.load_state_dict(model_state)
         optimizer.load_state_dict(optimizer_state)
         optimizer.zero_grad(set_to_none=True)
+
+    def create_dataloader(batch_size: int) -> DataLoader:
+        kwargs = {
+            **(dataloader_kwargs or {}),
+            "dataset": dataset,
+            "batch_size": batch_size,
+        }
+        return DataLoader(**kwargs)
 
     def benchmark_throughput(loader: DataLoader, benchmark_batches: int) -> float:
         iterator = iter(loader)
@@ -330,6 +353,7 @@ def find_best_batch_size(
         memory_batches=memory_batches,
         device_safety_factor=device_safety_factor,
         system_reserve_factor=system_reserve_factor,
+        dataloader_kwargs=dataloader_kwargs,
         verbose=verbose,
     )
 
@@ -352,9 +376,9 @@ def find_best_batch_size(
         empty_device_cache(device)
         reset_state()
 
-        throughput = benchmark_throughput(
-            DataLoader(dataset, batch_size=bs), coarse_benchmark_batches
-        )
+        loader = create_dataloader(bs)
+
+        throughput = benchmark_throughput(loader, coarse_benchmark_batches)
 
         if throughput > best_coarse_throughput:
             best_coarse_bs = bs
@@ -394,9 +418,9 @@ def find_best_batch_size(
         empty_device_cache(device)
         reset_state()
 
-        throughput = benchmark_throughput(
-            DataLoader(dataset, batch_size=bs), fine_benchmark_batches
-        )
+        loader = create_dataloader(bs)
+
+        throughput = benchmark_throughput(loader, fine_benchmark_batches)
 
         fine_results.append((bs, throughput))
 
@@ -432,9 +456,9 @@ def find_best_batch_size(
             empty_device_cache(device)
             reset_state()
 
-            throughput = benchmark_throughput(
-                DataLoader(dataset, batch_size=bs), final_benchmark_batches
-            )
+            loader = create_dataloader(bs)
+
+            throughput = benchmark_throughput(loader, final_benchmark_batches)
 
             results[bs].append(throughput)
 
