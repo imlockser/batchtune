@@ -6,7 +6,7 @@ from torchvision.transforms import ToTensor
 
 from src.core import find_best_batch_size
 
-DEVICE = torch.device("mps")
+DEVICE = torch.device("cuda")
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
     optimizer = optim.AdamW(model.parameters())
     loss_fn = nn.CrossEntropyLoss()
 
-    dataset = CIFAR10(root="./data", transform=ToTensor())
+    dataset = CIFAR10("./data", transform=ToTensor(), download=True)
 
     max_bs = find_best_batch_size(
         model,
