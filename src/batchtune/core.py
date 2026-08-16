@@ -8,7 +8,7 @@ import torch
 from torch import OutOfMemoryError, nn, optim
 from torch.utils.data import DataLoader, Dataset
 
-from src.utils import (
+from .utils import (
     empty_device_cache,
     get_device_memory_limit,
     get_device_used_memory,

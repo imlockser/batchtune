@@ -1,4 +1,10 @@
+# Python
 __pycache__/
 .venv/
 .ruff_cache/
+
+# Build
+dist/
+
+# Misc
 data/
